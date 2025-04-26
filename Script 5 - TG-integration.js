@@ -1,73 +1,39 @@
-// Конфигурация
-const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'; // Токен вашего Telegram-бота
-const TELEGRAM_CHAT_IDS = ['CHAT_ID_1', 'CHAT_ID_2']; // ID чатов администраторов
-const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID'; // ID вашей Google Таблицы
-const INCIDENT_SHEET_NAME = 'Incidents'; // Название листа с инцидентами
+function main() {
+  // Получаем все активные кампании
+  var campaignIterator = AdsApp.campaigns()
+    .withCondition("Status = 'PAUSED'")  // Фильтруем по активным кампаниям
+    .get();
 
-// Функция для отправки уведомлений в Telegram
-function sendTelegramNotifications() {
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = spreadsheet.getSheetByName(INCIDENT_SHEET_NAME);
-  
-  if (!sheet) {
-    Logger.log('Лист с инцидентами не найден.');
-    return;
+  // Перебираем кампании и проверяем их статус
+  while (campaignIterator.hasNext()) {
+    var campaign = campaignIterator.next();
+
+    // Проверяем, если кампания приостановлена
+    if (!campaign.isEnabled()) {
+      sendTelegramMessage('Кампания приостановлена: ' + campaign.getName());
+    }
+
+    // Проверяем, если кампания достигла суточного бюджета
+    var todayStats = campaign.getStatsFor("TODAY");
+    if (todayStats.getCost() >= campaign.getBudget().getAmount()) {
+      sendTelegramMessage('Кампания достигла суточного бюджета: ' + campaign.getName());
+    }
   }
-  
-  const data = sheet.getDataRange().getValues(); // Получаем все данные из таблицы
-  if (data.length <= 1) {
-    Logger.log('Нет новых инцидентов для уведомления.');
-    return;
-  }
-  
-  // Удаляем заголовки и фильтруем только новые инциденты
-  const incidents = data.slice(1).filter(row => row[0] !== ''); // Исключаем пустые строки
-  
-  if (incidents.length === 0) {
-    Logger.log('Нет новых инцидентов для уведомления.');
-    return;
-  }
-  
-  // Формируем сообщение
-  let message = `🚨 *Уведомление о приостановленных кампаниях* 🚨\n\n`;
-  incidents.forEach((incident, index) => {
-    const [timestamp, campaignName, cost, clicks] = incident;
-    message += `${index + 1}. Кампания: *${campaignName}*\n`;
-    message += `   - Расход: $${cost}\n`;
-    message += `   - Клики: ${clicks}\n`;
-    message += `   - Время: ${timestamp}\n\n`;
-  });
-  
-  // Отправляем сообщение всем администраторам
-  TELEGRAM_CHAT_IDS.forEach(chatId => {
-    sendTelegramMessage(chatId, message);
-  });
-  
-  Logger.log(`Уведомления отправлены. Всего инцидентов: ${incidents.length}`);
 }
 
-// Вспомогательная функция для отправки сообщения через Telegram API
-function sendTelegramMessage(chatId, message) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  const payload = {
-    chat_id: chatId,
-    text: message,
-    parse_mode: 'Markdown'
-  };
+function sendTelegramMessage(message) {
+  var botToken = 'СЮДА ТОКЕН БОТА'; // Замените на ваш токен бота
+  var chatId = 'СЮДА CHAT-ID';     // Замените на ваш chat_id
   
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload)
-  };
-  
-  UrlFetchApp.fetch(url, options);
-}
+  // Экранируем параметры, чтобы избежать проблем с URL
+  var encodedMessage = encodeURIComponent(message);
+  var telegramUrl = "https://api.telegram.org/bot" + botToken + "/sendMessage?chat_id=" + chatId + "&text=" + encodedMessage;
 
-// Установка триггера для выполнения раз в час
-function setupTrigger() {
-  ScriptApp.newTrigger('sendTelegramNotifications')
-    .timeBased()
-    .everyHours(1)
-    .create();
+  // Отправляем запрос в Telegram API
+  try {
+    var response = UrlFetchApp.fetch(telegramUrl);
+    Logger.log("Уведомление отправлено: " + message);
+  } catch (e) {
+    Logger.log("Ошибка при отправке уведомления: " + e.message);
+  }
 }
