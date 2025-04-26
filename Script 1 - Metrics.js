@@ -1,76 +1,68 @@
-// Конфигурация
-const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID'; // ID вашей Google Таблицы
-const GOOGLE_ADS_ACCOUNT_IDS = ['123-456-7890', '098-765-4321']; // Список аккаунтов Google Ads
-const REPORT_DATE_RANGE = 'LAST_7_DAYS'; // Диапазон дат отчета
-const METRICS = ['metrics.impressions', 'metrics.clicks', 'metrics.ctr', 'metrics.cost_micros', 'metrics.conversions']; // Метрики для экспорта
-const DIMENSIONS = ['campaign.name']; // Измерения (например, название кампании)
+function main() {
+  var spreadsheetUrl = "РЎР®Р”Рђ РЎРЎР«Р›РљРЈ РќРђ Р’РђРЁРЈ Р“РЈР“Р›-РўРђР‘Р›РР¦РЈ РЎРЎР«Р›РљРђ Р—РђРљРђРќР§РР’РђР•РўРЎРЇ РќРђ /edit";
+  var statusSheetName = "Campaign Status"; 
+  var reachSheetName = "Daily Reach"; 
+  
+  var spreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl);
 
-// Функция для получения данных из Google Ads
-function fetchGoogleAdsData() {
-  const reports = [];
-  
-  GOOGLE_ADS_ACCOUNT_IDS.forEach(accountId => {
-    const query = `
-      SELECT ${DIMENSIONS.join(', ')}, ${METRICS.join(', ')}
-      FROM campaign
-      WHERE segments.date DURING ${REPORT_DATE_RANGE}
-    `;
-    
-    const report = AdsApp.report(query, {
-      includeZeroImpressions: false,
-      apiVersion: 'v11'
-    });
-    
-    const rows = report.rows();
-    while (rows.hasNext()) {
-      const row = rows.next();
-      const rowData = {};
-      DIMENSIONS.forEach(dim => rowData[dim] = row[dim]);
-      METRICS.forEach(metric => rowData[metric] = row[metric]);
-      rowData['account_id'] = accountId; // Добавляем ID аккаунта
-      reports.push(rowData);
-    }
-  });
-  
-  return reports;
-}
+  // Р”РѕР±Р°РІР»СЏРµРј СЃС‚Р°С‚СѓСЃ РєР°РјРїР°РЅРёР№
+  updateCampaignStatus(spreadsheet, statusSheetName);
 
-// Функция для записи данных в Google Таблицу
-function exportDataToSheet() {
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = spreadsheet.getSheetByName('Data') || spreadsheet.insertSheet('Data');
-  
-  // Очищаем старые данные
-  sheet.clearContents();
-  
-  // Получаем данные из Google Ads
-  const data = fetchGoogleAdsData();
-  
-  if (data.length === 0) {
-    Logger.log('Нет данных для экспорта.');
-    return;
+  // РћР±РЅРѕРІР»СЏРµРј РѕС…РІР°С‚С‹ СЂР°Р· РІ СЃСѓС‚РєРё
+  if (isMidnight()) {
+    updateDailyReach(spreadsheet, reachSheetName);
   }
-  
-  // Формируем заголовки
-  const headers = ['Account ID'].concat(DIMENSIONS, METRICS);
-  sheet.appendRow(headers);
-  
-  // Записываем данные
-  data.forEach(row => {
-    const rowData = [row['account_id']];
-    DIMENSIONS.forEach(dim => rowData.push(row[dim]));
-    METRICS.forEach(metric => rowData.push(row[metric]));
-    sheet.appendRow(rowData);
-  });
-  
-  Logger.log(`Экспорт завершен. Всего строк: ${data.length}`);
 }
 
-// Установка триггера для ежедневного выполнения
-function setupTrigger() {
-  ScriptApp.newTrigger('exportDataToSheet')
-    .timeBased()
-    .everyDays(1)
-    .atHour(9)
-    .create();
+// Р”РѕР±Р°РІР»РµРЅРёРµ СЃС‚Р°С‚СѓСЃР° РєР°РјРїР°РЅРёР№ РІ РЅРѕРІС‹Рµ СЃС‚СЂРѕРєРё
+function updateCampaignStatus(spreadsheet, sheetName) {
+  var sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+  
+  // РџСЂРѕРІРµСЂСЏРµРј, РµСЃС‚СЊ Р»Рё Р·Р°РіРѕР»РѕРІРєРё, РµСЃР»Рё РЅРµС‚ вЂ” РґРѕР±Р°РІР»СЏРµРј
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Р”Р°С‚Р° Рё РІСЂРµРјСЏ", "РљР°РјРїР°РЅРёСЏ", "ID", "РЎС‚Р°С‚СѓСЃ"]);
+  }
+
+  var campaigns = AdsApp.campaigns().get();
+  while (campaigns.hasNext()) {
+    var campaign = campaigns.next();
+    sheet.appendRow([
+      new Date().toLocaleString(),
+      campaign.getName(),
+      campaign.getId(),
+      campaign.isEnabled() ? "РђРєС‚РёРІРЅР°" : (campaign.isPaused() ? "РџСЂРёРѕСЃС‚Р°РЅРѕРІР»РµРЅР°" : "РћСЃС‚Р°РЅРѕРІР»РµРЅР°")
+    ]);
+  }
+}
+
+// Р”РѕР±Р°РІР»РµРЅРёРµ РѕС…РІР°С‚РѕРІ Р·Р° РїСЂРѕС€РµРґС€РёРµ СЃСѓС‚РєРё РІ РЅРѕРІС‹Рµ СЃС‚СЂРѕРєРё
+function updateDailyReach(spreadsheet, sheetName) {
+  var sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+  
+  // РџСЂРѕРІРµСЂСЏРµРј, РµСЃС‚СЊ Р»Рё Р·Р°РіРѕР»РѕРІРєРё, РµСЃР»Рё РЅРµС‚ вЂ” РґРѕР±Р°РІР»СЏРµРј
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Р”Р°С‚Р°", "РљР°РјРїР°РЅРёСЏ", "ID", "РћС…РІР°С‚С‹"]);
+  }
+
+  var date = new Date();
+  date.setDate(date.getDate() - 1); // Р’С‡РµСЂР°С€РЅРёР№ РґРµРЅСЊ
+  var formattedDate = Utilities.formatDate(date, AdsApp.currentAccount().getTimeZone(), "yyyy-MM-dd");
+
+  var campaigns = AdsApp.campaigns().get();
+  while (campaigns.hasNext()) {
+    var campaign = campaigns.next();
+    var stats = campaign.getStatsFor("YESTERDAY");
+    sheet.appendRow([
+      formattedDate,
+      campaign.getName(),
+      campaign.getId(),
+      stats.getImpressions()
+    ]);
+  }
+}
+
+// РџСЂРѕРІРµСЂСЏРµС‚, РЅР°СЃС‚СѓРїРёР»Р° Р»Рё РїРѕР»РЅРѕС‡СЊ
+function isMidnight() {
+  var now = new Date();
+  return now.getHours() === 0 && now.getMinutes
 }
