@@ -6,14 +6,11 @@ function main() {
   var searchQueryCTRThreshold = 1.5; // Минимальный CTR для добавления нового ключевого слова (%)
   var excludedCampaignStatuses = ["PAUSED", "REMOVED"]; // Кампании для исключения
   
-  // Отключение ключевых слов
   disableLowPerformanceKeywords(dateRange, minCTR, maxCPA);
 
-  // Добавление новых ключевых слов
   addNewKeywords(dateRange, searchQueryCTRThreshold, excludedCampaignStatuses);
 }
 
-// Отключение ключевых слов с низким CTR или высоким CPA
 function disableLowPerformanceKeywords(dateRange, minCTR, maxCPA) {
   var keywords = AdsApp.keywords()
     .withCondition("Status = ENABLED")
@@ -40,7 +37,6 @@ function disableLowPerformanceKeywords(dateRange, minCTR, maxCPA) {
   }
 }
 
-// Добавление новых ключевых слов из отчёта по поисковым запросам
 function addNewKeywords(dateRange, searchQueryCTRThreshold, excludedCampaignStatuses) {
   var searchQueries = AdsApp.report(
     "SELECT Query, AdGroupId, CampaignId, Clicks, Impressions, Ctr " +
@@ -59,7 +55,6 @@ function addNewKeywords(dateRange, searchQueryCTRThreshold, excludedCampaignStat
     var queryText = queryRow["Query"];
     var adGroupId = queryRow["AdGroupId"];
 
-    // Добавляем ключевое слово в соответствующую группу объявлений
     var adGroup = AdsApp.adGroups().withIds([adGroupId]).get().next();
     var existingKeywords = adGroup.keywords().withCondition("Text = '" + queryText + "'").get();
 
@@ -69,3 +64,4 @@ function addNewKeywords(dateRange, searchQueryCTRThreshold, excludedCampaignStat
     }
   }
 }
+
